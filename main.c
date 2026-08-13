@@ -5,7 +5,11 @@
 #include <cjson/cJSON.h>
 #include <time.h>
 #include <pthread.h>
+#include <string.h>
+#include <unistd.h>
 
+#define TRUE 1
+#define FALSE 0
 #define MAX_SECONDS 15
 #define SERVER_LIST_FILE "speedtest_server_list.json"
 
@@ -52,6 +56,9 @@ void *timer(void *arg)
     while (clock() - start < seconds * CLOCKS_PER_SEC)
     {
         printf("\rtime elapsed: %0.2f/%d seconds", (double)(clock() - start) / (double)CLOCKS_PER_SEC, MAX_SECONDS);
+        fflush(stdout);
+        usleep(100000);
+
     }
     return NULL;
 }
@@ -163,8 +170,8 @@ char **parse_server_list(char **buffer, char *country, size_t *host_count)
     }
 
     char **hosts = NULL;
-
     cJSON *server = NULL;
+
     cJSON_ArrayForEach(server, json)
     {
         if (cJSON_GetObjectItem(server, "country") && strcmp(cJSON_GetObjectItem(server, "country")->valuestring, country) == 0)
@@ -200,7 +207,7 @@ char *remove_port(char *host)
 
 char *get_country(const char *locationApiUrl)
 {
-    CURL *curl;
+    CURL *curl = NULL;
     CURLcode result;
     char *country_str = NULL;
     struct MemoryStruct chunk;
@@ -297,9 +304,7 @@ int main(int argc, char *argv[])
     int do_find_location = FALSE;
 
     const char *locationApiUrl = "http://ip-api.com/json/?fields=16401";
-    //char country[56] = "Lithuania";
-    //char country[56] = "Norway";
-    char *country;
+    char *country = NULL;
     char *given_url = NULL;
     char *url = NULL;
     char *buffer = NULL;
@@ -310,7 +315,6 @@ int main(int argc, char *argv[])
 
     while ((c = getopt(argc, argv, "v:l:H:")) != -1) {
         switch (c) {
-
         case 'v':
         printf("%s\n", optarg);
             switch (optarg[0]) {
@@ -365,10 +369,19 @@ int main(int argc, char *argv[])
             break;
         }
     }
-    printf("do_find_location: %d\n", do_find_location);
-    printf("do_find_host: %d\n", do_find_host);
-    printf("do_upspeed_test: %d\n", do_upspeed_test);
-    printf("do_downspeed_test: %d\n", do_downspeed_test);
+
+    if( (argc >= 1) && (c == -1) )
+    {
+        printf("No options provided. Running all tests by default.\n");
+        do_find_location = TRUE;
+        do_find_host = TRUE;
+        do_upspeed_test = TRUE;
+        do_downspeed_test = TRUE;
+    }
+    //printf("do_find_location: %d\n", do_find_location);
+    //printf("do_find_host: %d\n", do_find_host);
+    //printf("do_upspeed_test: %d\n", do_upspeed_test);
+    //printf("do_downspeed_test: %d\n", do_downspeed_test);
 
     if(do_find_location == TRUE) {
         printf("Finding location...\n");
@@ -471,7 +484,7 @@ int main(int argc, char *argv[])
 
     if (do_downspeed_test == TRUE)
     {
-        CURL *curl;
+        CURL *curl = NULL;
         CURLcode result;
 
         struct MemoryStruct chunk;
@@ -487,7 +500,7 @@ int main(int argc, char *argv[])
         if (curl)
         {
             fprintf(stdout, "Starting download speed test...\n");
-            curl_easy_setopt(curl, CURLOPT_URL, "http://speedtest1.ntt.lt/speedtest/random1000x1000.jpg"); // ~500 kB
+            curl_easy_setopt(curl, CURLOPT_URL, "https://speed-kaunas.telia.lt/speedtest/random1000x1000.jpg"); // ~500 kB
 
             /* send all data to this function */
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
