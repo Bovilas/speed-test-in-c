@@ -1,0 +1,8 @@
+.vscode/
+~$*
+*.o
+*.d
+main.exe
+main
+speedtest.exe
+speedtest
