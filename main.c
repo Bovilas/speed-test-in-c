@@ -438,8 +438,6 @@ int main(int argc, char *argv[])
             printf("Using host: %s\n", url);
         }
         free(country);
-        free(buffer);
-        free(url);
 
         for (size_t i = 0; i < host_count; i++)
         {
@@ -499,7 +497,7 @@ int main(int argc, char *argv[])
                 printf("at %f Mbps\n", (sum / total_time) / 125000.0);
                 printf("at %f MB/s\n", (sum / total_time) / 125000.0 / 8.0);
 
-                free(buffer);
+                curl_easy_cleanup(curl);
             }
             else
             {
@@ -567,6 +565,9 @@ int main(int argc, char *argv[])
             curl_global_cleanup();
         }
     }
+    free(buffer);
+    free(url);
+    free(country);
     
     return 0;
 }
