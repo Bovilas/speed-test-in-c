@@ -118,8 +118,9 @@ void *start_downspeed_test(void *arg)
     struct timespec now;
     double elapsed = 0.0;
     clock_gettime(CLOCK_MONOTONIC, data->start);
+    clock_gettime(CLOCK_MONOTONIC, &now);
 
-    while (elapsed_seconds(start, &now) < seconds) {
+    while (elapsed < seconds) {
         result = curl_easy_perform(curl);
 
         if (result != CURLE_OK)
@@ -298,7 +299,6 @@ char *find_valid_host(char **hosts, size_t host_count)
                 {
                     url = strdup(hosts[i]);
                     curl_easy_cleanup(curl);
-                    free(buffer);
                     return url;
                 }
             }
