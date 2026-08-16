@@ -436,7 +436,10 @@ int main(int argc, char *argv[])
         {
         printf("Using host: %s\n", url);
         }
-
+        free(country);
+        free(buffer);
+        free(hosts);
+        free(url);
     }
 
     if (do_upspeed_test == TRUE)
