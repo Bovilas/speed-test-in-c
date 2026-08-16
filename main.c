@@ -203,6 +203,7 @@ char **parse_server_list(char **buffer, char *country, size_t *host_count)
             }
             hosts[*host_count] = strdup(cJSON_GetObjectItem(server, "host")->valuestring);
             (*host_count)++;
+            
         }
     }
 
@@ -411,7 +412,7 @@ int main(int argc, char *argv[])
 
     if(do_find_host) {
         printf("Finding host...\n");
-        size_t host_count = 0;;
+        size_t host_count = 0;
         char **hosts = parse_server_list(&buffer, country, &host_count);
         if (buffer == NULL)
         {
@@ -434,12 +435,18 @@ int main(int argc, char *argv[])
         }
         else
         {
-        printf("Using host: %s\n", url);
+            printf("Using host: %s\n", url);
         }
         free(country);
         free(buffer);
-        free(hosts);
         free(url);
+
+        for (size_t i = 0; i < host_count; i++)
+        {
+            free(hosts[i]);
+        }
+        free(hosts);
+        
     }
 
     if (do_upspeed_test == TRUE)
