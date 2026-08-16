@@ -12,6 +12,7 @@
 #define FALSE 0
 #define MAX_SECONDS 15
 #define SERVER_LIST_FILE "speedtest_server_list.json"
+#define BUFFER_SIZE 1024
 
 typedef struct
 {
@@ -19,17 +20,24 @@ typedef struct
     char *buffer;
     size_t sent;
     size_t *sum;
-    clock_t *end;
-    clock_t *start;
+    struct timespec *end;
+    struct timespec *start;
     int seconds;
     struct MemoryStruct *chunk;
 } thread_data_t;
+
 
 struct MemoryStruct
 {
     char *memory;
     size_t size;
 };
+
+double elapsed_seconds(struct timespec *start, struct timespec *end)
+{
+    return (end->tv_sec - start->tv_sec) + (end->tv_nsec - start->tv_nsec) / 1e9;
+    
+}
 
 static size_t write_cb(char *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -52,10 +60,15 @@ static size_t write_cb(char *contents, size_t size, size_t nmemb, void *userp)
 void *timer(void *arg)
 {
     int seconds = *(int *)arg;
-    time_t start = clock();
-    while (clock() - start < seconds * CLOCKS_PER_SEC)
+    struct timespec start, now;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    double elapsed = 0.0;
+    while (elapsed < seconds)
     {
-        printf("\rtime elapsed: %0.2f/%d seconds", (double)(clock() - start) / (double)CLOCKS_PER_SEC, MAX_SECONDS);
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        elapsed = elapsed_seconds(&start, &now);
+        printf("\rtime elapsed: %0.2f/%d seconds", elapsed, MAX_SECONDS);
         fflush(stdout);
         usleep(100000);
 
@@ -70,19 +83,23 @@ void *start_upspeed_test(void *arg)
     char *buffer = data->buffer;
     size_t sent = data->sent;
     size_t *sum = data->sum;
-    clock_t *start = data->start;
     int seconds = data->seconds;
     CURLcode result;
 
-    *(data->start) = clock();
+    clock_gettime(CLOCK_MONOTONIC, data->start);
 
-    while (clock() - *(data->start) < seconds * CLOCKS_PER_SEC)
+    struct timespec now;
+    double elapsed = 0.0;
+    while (elapsed < seconds)
     {
-        result = curl_easy_send(curl, buffer, 1024, &sent);
+        result = curl_easy_send(curl, buffer, BUFFER_SIZE, &sent);
         *sum += sent;
+
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        elapsed = elapsed_seconds(data->start, &now);
     }
 
-    *(data->end) = clock();
+    clock_gettime(CLOCK_MONOTONIC, data->end);
     return NULL;
 }
 
@@ -93,34 +110,33 @@ void *start_downspeed_test(void *arg)
     char *buffer = data->buffer;
     size_t sent = data->sent;
     size_t *sum = data->sum;
-    clock_t *start = data->start;
+    struct timespec *start = data->start;
     int seconds = data->seconds;
     CURLcode result;
     struct MemoryStruct *chunk = data->chunk;
 
-    /* send all data to this function */
+    struct timespec now;
+    double elapsed = 0.0;
+    clock_gettime(CLOCK_MONOTONIC, data->start);
 
-    *(data->start) = clock();
-
-    while (clock() - *(data->start) < seconds * CLOCKS_PER_SEC)
-    {
-        /* get it! */
+    while (elapsed_seconds(start, &now) < seconds) {
         result = curl_easy_perform(curl);
 
-        /* check for errors */
         if (result != CURLE_OK)
         {
             fprintf(stderr, "curl_easy_perform() failed: %s\n",
-                    curl_easy_strerror(result));
+                curl_easy_strerror(result));
         }
         else
-        { /* Now, our chunk.memory points to a memory block that is chunk.size */
-            // printf("%lu  bytes retrieved\n", (unsigned long)chunk->size);
+        { 
             *sum += (unsigned long)chunk->size;
         }
+
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        elapsed = elapsed_seconds(start, &now);
     }
 
-    *(data->end) = clock();
+    clock_gettime(CLOCK_MONOTONIC, data->end);
     return NULL;
 }
 
@@ -267,7 +283,7 @@ char *find_valid_host(char **hosts, size_t host_count)
     if (curl){
         CURLcode result;
         size_t sent;
-        char buffer[1024] = "test";
+        char buffer[BUFFER_SIZE] = "test";
         for (size_t i = 0; i < host_count; i++)
         {
             printf("Testing host %zu: %s\n", i , hosts[i]);
@@ -277,7 +293,7 @@ char *find_valid_host(char **hosts, size_t host_count)
             result = curl_easy_perform(curl);
             if (result == CURLE_OK)
             {
-                result = curl_easy_send(curl, buffer, 1024, &sent);
+                result = curl_easy_send(curl, buffer, BUFFER_SIZE, &sent);
                 if (result == CURLE_OK && sent > 0)
                 {
                     url = strdup(hosts[i]);
@@ -370,7 +386,8 @@ int main(int argc, char *argv[])
         }
     }
 
-    if( (argc >= 1) && (c == -1) )
+    if( (argc == 1) || (do_find_location == FALSE && do_find_host == FALSE && do_upspeed_test == FALSE && do_downspeed_test == FALSE) ) // one argument or no options provided, 
+                                                                                                                                        // run all tests by default
     {
         printf("No options provided. Running all tests by default.\n");
         do_find_location = TRUE;
@@ -378,10 +395,10 @@ int main(int argc, char *argv[])
         do_upspeed_test = TRUE;
         do_downspeed_test = TRUE;
     }
-    //printf("do_find_location: %d\n", do_find_location);
-    //printf("do_find_host: %d\n", do_find_host);
-    //printf("do_upspeed_test: %d\n", do_upspeed_test);
-    //printf("do_downspeed_test: %d\n", do_downspeed_test);
+    printf("do_find_location: %d\n", do_find_location);
+    printf("do_find_host: %d\n", do_find_host);
+    printf("do_upspeed_test: %d\n", do_upspeed_test);
+    printf("do_downspeed_test: %d\n", do_downspeed_test);
 
     if(do_find_location == TRUE) {
         printf("Finding location...\n");
@@ -416,8 +433,9 @@ int main(int argc, char *argv[])
             return 1;
         }
         else
-
+        {
         printf("Using host: %s\n", url);
+        }
     }
 
     if (do_upspeed_test == TRUE)
@@ -426,7 +444,6 @@ int main(int argc, char *argv[])
         size_t sent;
         CURL *curl = curl_easy_init();
 
-        //strcpy(url, "speedtest1.ntt.lt");
         if (curl)
         {
             CURLcode result;
@@ -439,10 +456,9 @@ int main(int argc, char *argv[])
                 printf("Connected, %i\n", result);
                 curl_socket_t sockfd;
 
-                /* Extract the socket from the curl handle - we need it for waiting. */
                 result = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET, &sockfd);
                 size_t sum = 0;
-                clock_t start, end;
+                struct timespec start, end;
                 thread_data_t data;
 
                 data.curl = curl;
@@ -454,7 +470,7 @@ int main(int argc, char *argv[])
                 data.seconds = MAX_SECONDS;
 
                 printf("starting upspeed test\n");
-                /* send data */
+                // send data 
                 int seconds = MAX_SECONDS;
 
                 pthread_t timer_t, upspeed_test_t; // setup and run multithreaded timer and upload test
@@ -466,7 +482,7 @@ int main(int argc, char *argv[])
                 pthread_join(upspeed_test_t, NULL);
 
                 printf("\nSent %lu bytes\n", sum);
-                double total_time = (double)(end - start) / (double)CLOCKS_PER_SEC;
+                double total_time = elapsed_seconds(&start, &end);
                 printf("Execution time: %.6f seconds\n", total_time);
                 printf("Upload test completed, results:\n");
                 printf("at %f Mbps\n", (sum / total_time) / 125000.0);
@@ -502,14 +518,13 @@ int main(int argc, char *argv[])
             fprintf(stdout, "Starting download speed test...\n");
             curl_easy_setopt(curl, CURLOPT_URL, "https://speed-kaunas.telia.lt/speedtest/random1000x1000.jpg"); // ~500 kB
 
-            /* send all data to this function */
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
 
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
             curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
 
             size_t sum = 0;
-            clock_t start, end;
+            struct timespec start, end;
             thread_data_t data;
 
             data.curl = curl;
@@ -529,7 +544,7 @@ int main(int argc, char *argv[])
             pthread_join(downspeed_test_t, NULL);
 
             printf("\nRecieved %lu bytes\n", sum);
-            double total_time = (double)(end - start) / (double)CLOCKS_PER_SEC;
+            double total_time = elapsed_seconds(&start, &end);
             printf("Execution time: %.6f seconds\n", total_time);
             printf("Download test completed, results:\n");
             printf("at %f Mbps\n", (sum / total_time) / 125000.0);
