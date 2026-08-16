@@ -298,6 +298,7 @@ char *find_valid_host(char **hosts, size_t host_count)
                 {
                     url = strdup(hosts[i]);
                     curl_easy_cleanup(curl);
+                    free(buffer);
                     return url;
                 }
             }
@@ -306,9 +307,11 @@ char *find_valid_host(char **hosts, size_t host_count)
     else
     {
         fprintf(stderr, "Error initializing curl\n");
+        curl_easy_cleanup(curl);
         return NULL;
     }
     curl_easy_cleanup(curl);
+    fprintf(stderr, "No valid host found\n");
     return NULL;
 }
 
@@ -386,8 +389,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if( (argc == 1) || (do_find_location == FALSE && do_find_host == FALSE && do_upspeed_test == FALSE && do_downspeed_test == FALSE) ) // one argument or no options provided, 
-                                                                                                                                        // run all tests by default
+    if( (argc == 1) || (do_find_location == FALSE && do_find_host == FALSE && do_upspeed_test == FALSE && do_downspeed_test == FALSE) ) // one argument or no options provided
     {
         printf("No options provided. Running all tests by default.\n");
         do_find_location = TRUE;
@@ -436,6 +438,7 @@ int main(int argc, char *argv[])
         {
         printf("Using host: %s\n", url);
         }
+
     }
 
     if (do_upspeed_test == TRUE)
