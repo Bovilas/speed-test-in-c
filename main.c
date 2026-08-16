@@ -13,6 +13,7 @@
 #define MAX_SECONDS 15
 #define SERVER_LIST_FILE "speedtest_server_list.json"
 #define BUFFER_SIZE 1024
+#define LOCATION_API_URL "http://ip-api.com/json/?fields=16401"
 
 typedef struct
 {
@@ -85,7 +86,7 @@ void *start_upspeed_test(void *arg)
     size_t *sum = data->sum;
     int seconds = data->seconds;
     CURLcode result;
-
+    result; // to avoid unused variable warning :) creates another warning
     clock_gettime(CLOCK_MONOTONIC, data->start);
 
     struct timespec now;
@@ -107,8 +108,6 @@ void *start_downspeed_test(void *arg)
 {
     thread_data_t *data = (thread_data_t *)arg;
     CURL *curl = data->curl;
-    char *buffer = data->buffer;
-    size_t sent = data->sent;
     size_t *sum = data->sum;
     struct timespec *start = data->start;
     int seconds = data->seconds;
@@ -172,7 +171,7 @@ char **parse_server_list(char **buffer, char *country, size_t *host_count)
         printf("Memory allocated successfully\n");
     }
 
-    size_t read = fread(*buffer, 1, size, fp);
+    fread(*buffer, 1, size, fp);
     cJSON *json = cJSON_Parse(*buffer);
     if (json == NULL)
     {
@@ -222,7 +221,7 @@ char *remove_port(char *host)
     return host;
 }
 
-char *get_country(const char *locationApiUrl)
+char *get_country(const char *url)
 {
     CURL *curl = NULL;
     CURLcode result;
@@ -238,7 +237,7 @@ char *get_country(const char *locationApiUrl)
     curl = curl_easy_init();
     if (curl)
     {
-        curl_easy_setopt(curl, CURLOPT_URL, "http://ip-api.com/json/?fields=16401");
+        curl_easy_setopt(curl, CURLOPT_URL, url);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
         curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
@@ -322,9 +321,8 @@ int main(int argc, char *argv[])
     int do_find_host = FALSE;
     int do_find_location = FALSE;
 
-    const char *locationApiUrl = "http://ip-api.com/json/?fields=16401";
+    const char *locationApiUrl = LOCATION_API_URL;
     char *country = NULL;
-    char *given_url = NULL;
     char *url = NULL;
     char *buffer = NULL;
 
@@ -444,7 +442,7 @@ int main(int argc, char *argv[])
     if (do_upspeed_test == TRUE)
     {
     
-        size_t sent;
+        size_t sent = 0;
         CURL *curl = curl_easy_init();
 
         if (curl)
@@ -484,7 +482,7 @@ int main(int argc, char *argv[])
                 pthread_join(timer_t, NULL);
                 pthread_join(upspeed_test_t, NULL);
 
-                printf("\nSent %lu bytes\n", sum);
+                printf("\nSent %llu bytes\n", sum);
                 double total_time = elapsed_seconds(&start, &end);
                 printf("Execution time: %.6f seconds\n", total_time);
                 printf("Upload test completed, results:\n");
@@ -546,7 +544,7 @@ int main(int argc, char *argv[])
             pthread_join(timer_t, NULL);
             pthread_join(downspeed_test_t, NULL);
 
-            printf("\nRecieved %lu bytes\n", sum);
+            printf("\nRecieved %llu bytes\n", sum);
             double total_time = elapsed_seconds(&start, &end);
             printf("Execution time: %.6f seconds\n", total_time);
             printf("Download test completed, results:\n");
