@@ -117,11 +117,6 @@ char *find_valid_host(char **hosts, size_t host_count)
             }
         }
     }
-    
-    fprintf(stderr, "Error initializing curl\n");
-    curl_easy_cleanup(curl);
-    return NULL;
-    
     curl_easy_cleanup(curl);
     fprintf(stderr, "No valid host found\n");
     return NULL;
