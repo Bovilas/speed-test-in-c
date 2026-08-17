@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
     }
 
     if (do_upspeed_test == TRUE)
-{
+    {
     size_t sent = 0;
     CURL *curl = curl_easy_init();
     if (!curl)
