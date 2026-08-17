@@ -1,6 +1,6 @@
 CC = gcc
 
-CFLAGS = -Wall -Wextra -std=c11 -pthread
+CFLAGS = -Wall -Wextra -std=gnu11 -pthread
 LIBS = -lcurl -lcjson
 
 TARGET = speedtest
